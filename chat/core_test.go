@@ -3,6 +3,7 @@ package chat
 import (
 	"log"
 	"net"
+	"strings"
 	"testing"
 	"time"
 )
@@ -57,7 +58,7 @@ func TestBroadcast(t *testing.T) {
 	for i := 0; i < N; i++ {
 		msg := <-clients[i].incoming
 		tokens <- 0
-		if msg == EXPECTED {
+		if strings.Contains(msg, EXPECTED) {
 			t.Logf("%d: %s\n", i, msg)
 		} else {
 			t.Errorf("Message: %s, expected %s\n", msg, EXPECTED)
@@ -101,7 +102,7 @@ func TestJoinLeave(t *testing.T) {
 
 	for i := N + 1; i < N-M; i++ {
 		msg := <-clients[i].incoming
-		if msg == EXPECTED {
+		if strings.Contains(msg, EXPECTED) {
 			t.Logf("%d: %s\n", i, msg)
 		} else {
 			t.Errorf("Message: %s, expected %s\n", msg, EXPECTED)

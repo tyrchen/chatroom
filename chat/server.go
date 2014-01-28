@@ -1,6 +1,7 @@
 package chat
 
 import (
+	"fmt"
 	"log"
 	"net"
 )
@@ -11,14 +12,14 @@ const (
 
 type Message chan string
 type Token chan int
-type ClientTable map[net.Conn]*Client
+type ClientTable map[string]*Client
 
 type Server struct {
 	listener net.Listener
 	clients  ClientTable
 	tokens   Token
 	pending  chan net.Conn
-	quiting  chan net.Conn
+	quiting  chan string
 	incoming Message
 	outgoing Message
 }
@@ -36,7 +37,7 @@ func CreateServer() *Server {
 		clients:  make(ClientTable, MAXCLIENTS),
 		tokens:   make(Token, MAXCLIENTS),
 		pending:  make(chan net.Conn),
-		quiting:  make(chan net.Conn),
+		quiting:  make(chan string),
 		incoming: make(Message),
 		outgoing: make(Message),
 	}
@@ -52,8 +53,8 @@ func (self *Server) listen() {
 				self.broadcast(message)
 			case conn := <-self.pending:
 				self.join(conn)
-			case conn := <-self.quiting:
-				self.leave(conn)
+			case name := <-self.quiting:
+				self.leave(name)
 			}
 		}
 	}()
@@ -61,29 +62,35 @@ func (self *Server) listen() {
 
 func (self *Server) join(conn net.Conn) {
 	client := CreateClient(conn)
-	self.clients[conn] = client
+	name := getUniqName()
+	client.SetName(name)
+	self.clients[name] = client
+
+	log.Printf("Auto assigned name for conn %p: %s\n", conn, name)
 
 	go func() {
 		for {
 			msg := <-client.incoming
-			log.Printf("Got message: %s\n", msg)
-			self.incoming <- msg
+			log.Printf("Got message: %s from client %s\n", msg, client.name)
+			self.incoming <- fmt.Sprintf("%s says: %s", client.name, msg)
 		}
 	}()
 
 	go func() {
 		for {
-			conn := <-client.quiting
-			log.Printf("Conn %v is quiting\n", conn)
-			self.quiting <- conn
+			name := <-client.quiting
+			log.Printf("Client %s is quiting\n", name)
+			self.quiting <- name
 		}
 	}()
 }
 
-func (self *Server) leave(conn net.Conn) {
-	if conn != nil {
-		conn.Close()
-		delete(self.clients, conn)
+func (self *Server) leave(name string) {
+	if name != "" {
+		if client, ok := self.clients[name]; ok {
+			client.conn.Close()
+			delete(self.clients, name)
+		}
 	}
 
 	self.generateToken()
