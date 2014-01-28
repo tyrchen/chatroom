@@ -44,24 +44,29 @@ func startClients(N int) (clients Clients) {
 	return
 }
 
-func TestBroadcast(t *testing.T) {
-	server := startServer()
-	N := MAXCLIENTS
-	tokens := make(chan int, N)
+func startServerClients(N int) (server *Server, clients Clients) {
+	server = startServer()
 
 	time.Sleep(50 * time.Microsecond)
 
-	clients := startClients(N)
-	clients[0].PutOutgoing(EXPECTED + "\n")
+	clients = startClients(N)
 
 	time.Sleep(50 * time.Millisecond)
+
+	return
+}
+
+func verifyAndStopServer(t *testing.T, server *Server, clients Clients, expected string) {
+	N := len(clients)
+	tokens := make(chan int, N)
+
 	for i := 0; i < N; i++ {
 		msg := <-clients[i].incoming
 		tokens <- 0
-		if strings.Contains(msg, EXPECTED) {
+		if strings.Contains(msg, expected) {
 			t.Logf("%d: %s\n", i, msg)
 		} else {
-			t.Errorf("Message: %s, expected %s\n", msg, EXPECTED)
+			t.Errorf("Message: %s, expected %s\n", msg, expected)
 		}
 	}
 
@@ -71,18 +76,23 @@ func TestBroadcast(t *testing.T) {
 		}
 		server.Stop()
 	}()
+}
 
+func TestBroadcast(t *testing.T) {
+	N := MAXCLIENTS
+	server, clients := startServerClients(N)
+
+	clients[0].PutOutgoing(EXPECTED + "\n")
+
+	verifyAndStopServer(t, server, clients, EXPECTED)
 }
 
 func TestJoinLeave(t *testing.T) {
-	server := startServer()
-	time.Sleep(50 * time.Microsecond)
 	N := MAXCLIENTS + 1
 	M := 10
-	tokens := make(chan int, N)
 
-	clients := startClients(N)
-	time.Sleep(50 * time.Millisecond)
+	server, clients := startServerClients(N)
+
 	if len(server.clients) != MAXCLIENTS {
 		t.Errorf("Clients: %d, expected %d", len(server.clients), MAXCLIENTS)
 	}
@@ -94,38 +104,23 @@ func TestJoinLeave(t *testing.T) {
 		t.Errorf("Clients: %d, expected %d", len(server.clients), MAXCLIENTS)
 	}
 
-	clients[1].PutOutgoing(EXPECTED + "\n")
+	clients[M+1].PutOutgoing(EXPECTED + "\n")
 
 	for i := 1; i < M; i++ {
 		log.Printf("Close client %p\n", clients[i])
 		clients[i].Close()
 	}
 
-	for i := N + 1; i < N-M; i++ {
-		msg := <-clients[i].incoming
-		tokens <- 0
-		if strings.Contains(msg, EXPECTED) {
-			t.Logf("%d: %s\n", i, msg)
-		} else {
-			t.Errorf("Message: %s, expected %s\n", msg, EXPECTED)
-		}
-	}
+	verifyAndStopServer(t, server, clients[M+1:], EXPECTED)
 
-	go func() {
-		for i := 0; i < N; i++ {
-			<-tokens
-		}
-		server.Stop()
-	}()
 }
 
 func TestChangeName(t *testing.T) {
-	server := startServer()
-	time.Sleep(50 * time.Microsecond)
 	N := 2
 
-	clients := startClients(N)
-	time.Sleep(50 * time.Millisecond)
+	server, clients := startServerClients(N)
 
 	clients[0].PutOutgoing(":name Tyr\n")
+
+	verifyAndStopServer(t, server, clients, "changed its name to Tyr")
 }
