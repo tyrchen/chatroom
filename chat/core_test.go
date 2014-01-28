@@ -79,6 +79,7 @@ func TestJoinLeave(t *testing.T) {
 	time.Sleep(50 * time.Microsecond)
 	N := MAXCLIENTS + 1
 	M := 10
+	tokens := make(chan int, N)
 
 	clients := startClients(N)
 	time.Sleep(50 * time.Millisecond)
@@ -102,6 +103,7 @@ func TestJoinLeave(t *testing.T) {
 
 	for i := N + 1; i < N-M; i++ {
 		msg := <-clients[i].incoming
+		tokens <- 0
 		if strings.Contains(msg, EXPECTED) {
 			t.Logf("%d: %s\n", i, msg)
 		} else {
@@ -109,4 +111,21 @@ func TestJoinLeave(t *testing.T) {
 		}
 	}
 
+	go func() {
+		for i := 0; i < N; i++ {
+			<-tokens
+		}
+		server.Stop()
+	}()
+}
+
+func TestChangeName(t *testing.T) {
+	server := startServer()
+	time.Sleep(50 * time.Microsecond)
+	N := 2
+
+	clients := startClients(N)
+	time.Sleep(50 * time.Millisecond)
+
+	clients[0].PutOutgoing(":name Tyr\n")
 }

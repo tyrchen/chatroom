@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"log"
 	"net"
+	"strings"
 )
 
 const (
@@ -71,8 +72,21 @@ func (self *Server) join(conn net.Conn) {
 	go func() {
 		for {
 			msg := <-client.incoming
-			log.Printf("Got message: %s from client %s\n", msg, client.name)
-			self.incoming <- fmt.Sprintf("%s says: %s", client.name, msg)
+			log.Printf("Got message: %s from client %s\n", msg, client.GetName())
+
+			if strings.HasPrefix(msg, ":") {
+				if cmd, err := parseCommand(msg); err == nil {
+					if err = self.executeCommand(client, cmd); err == nil {
+						continue
+					} else {
+						log.Println(err.Error())
+					}
+				} else {
+					log.Println(err.Error())
+				}
+			}
+			// fallthrough to normal message if it is not parsable or executable
+			self.incoming <- fmt.Sprintf("%s says: %s", client.GetName(), msg)
 		}
 	}()
 
@@ -129,7 +143,5 @@ func (self *Server) Start(connString string) {
 // FIXME: need to figure out if this is the correct approach to gracefully
 // terminate a server.
 func (self *Server) Stop() {
-
 	self.listener.Close()
-
 }
