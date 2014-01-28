@@ -12,7 +12,7 @@ type Client struct {
 	outgoing Message
 	reader   *bufio.Reader
 	writer   *bufio.Writer
-	quiting  chan string
+	quiting  chan net.Conn
 	name     string
 }
 
@@ -40,7 +40,7 @@ func CreateClient(conn net.Conn) *Client {
 		conn:     conn,
 		incoming: make(Message),
 		outgoing: make(Message),
-		quiting:  make(chan string),
+		quiting:  make(chan net.Conn),
 		reader:   reader,
 		writer:   writer,
 	}
@@ -54,7 +54,7 @@ func (self *Client) Listen() {
 }
 
 func (self *Client) quit() {
-	self.quiting <- self.GetName()
+	self.quiting <- self.conn
 }
 
 func (self *Client) Read() {

@@ -12,14 +12,14 @@ const (
 
 type Message chan string
 type Token chan int
-type ClientTable map[string]*Client
+type ClientTable map[net.Conn]*Client
 
 type Server struct {
 	listener net.Listener
 	clients  ClientTable
 	tokens   Token
 	pending  chan net.Conn
-	quiting  chan string
+	quiting  chan net.Conn
 	incoming Message
 	outgoing Message
 }
@@ -37,7 +37,7 @@ func CreateServer() *Server {
 		clients:  make(ClientTable, MAXCLIENTS),
 		tokens:   make(Token, MAXCLIENTS),
 		pending:  make(chan net.Conn),
-		quiting:  make(chan string),
+		quiting:  make(chan net.Conn),
 		incoming: make(Message),
 		outgoing: make(Message),
 	}
@@ -53,8 +53,8 @@ func (self *Server) listen() {
 				self.broadcast(message)
 			case conn := <-self.pending:
 				self.join(conn)
-			case name := <-self.quiting:
-				self.leave(name)
+			case conn := <-self.quiting:
+				self.leave(conn)
 			}
 		}
 	}()
@@ -64,7 +64,7 @@ func (self *Server) join(conn net.Conn) {
 	client := CreateClient(conn)
 	name := getUniqName()
 	client.SetName(name)
-	self.clients[name] = client
+	self.clients[conn] = client
 
 	log.Printf("Auto assigned name for conn %p: %s\n", conn, name)
 
@@ -78,19 +78,17 @@ func (self *Server) join(conn net.Conn) {
 
 	go func() {
 		for {
-			name := <-client.quiting
-			log.Printf("Client %s is quiting\n", name)
-			self.quiting <- name
+			conn := <-client.quiting
+			log.Printf("Client %s is quiting\n", client.GetName())
+			self.quiting <- conn
 		}
 	}()
 }
 
-func (self *Server) leave(name string) {
-	if name != "" {
-		if client, ok := self.clients[name]; ok {
-			client.conn.Close()
-			delete(self.clients, name)
-		}
+func (self *Server) leave(conn net.Conn) {
+	if conn != nil {
+		conn.Close()
+		delete(self.clients, conn)
 	}
 
 	self.generateToken()
