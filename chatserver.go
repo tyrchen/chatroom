@@ -1,7 +1,7 @@
 package main
 
 import (
-	. "chatroom/chat"
+	. "./chat"
 	"fmt"
 	"os"
 )

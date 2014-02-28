@@ -2,7 +2,7 @@ package main
 
 import (
 	"bufio"
-	. "chatroom/chat"
+	. "./chat"
 	"fmt"
 	"log"
 	"net"
